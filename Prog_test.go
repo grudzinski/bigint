@@ -14,77 +14,138 @@ var evalComplexRawPool = sync.Pool{
 	},
 }
 
+func abs(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func mod(a, b int64) int64 {
+	r := a % b
+	if r < 0 {
+		r += b
+	}
+	return r
+}
+
+func sqrt(v int64) int64 {
+	out := new(big.Int).Sqrt(big.NewInt(v))
+	if !out.IsInt64() {
+		panic("sqrt result overflows int64")
+	}
+	return out.Int64()
+}
+
+func modInverse(a, m int64) int64 {
+	out := new(big.Int).ModInverse(big.NewInt(a), big.NewInt(m))
+	if out == nil {
+		panic("mod inverse does not exist")
+	}
+	if !out.IsInt64() {
+		panic("mod inverse result overflows int64")
+	}
+	return out.Int64()
+}
+
+func quo(a, b int64) int64 {
+	out := new(big.Int).Quo(big.NewInt(a), big.NewInt(b))
+	if !out.IsInt64() {
+		panic("quo result overflows int64")
+	}
+	return out.Int64()
+}
+
+func rem(a, b int64) int64 {
+	out := new(big.Int).Rem(big.NewInt(a), big.NewInt(b))
+	if !out.IsInt64() {
+		panic("rem result overflows int64")
+	}
+	return out.Int64()
+}
+
+func modSqrt(a, p int64) int64 {
+	out := new(big.Int).ModSqrt(big.NewInt(a), big.NewInt(p))
+	if out == nil {
+		panic("mod sqrt does not exist")
+	}
+	if !out.IsInt64() {
+		panic("mod sqrt result overflows int64")
+	}
+	return out.Int64()
+}
+
 func TestCompileAndEval(t *testing.T) {
 	tests := []struct {
-		name     string
-		expr     string
-		vars     []string
-		values   []*big.Int
-		expected *big.Int
-		wantErr  bool
+		name      string
+		expr      string
+		vars      []string
+		values    []*big.Int
+		expected  *big.Int
+		wantPanic bool
 	}{
 		{
 			name:     "simple multiplication and division",
 			expr:     "(a * b) / c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(10), big.NewInt(20), big.NewInt(5)},
-			expected: big.NewInt(40),
+			expected: big.NewInt((10 * 20) / 5),
 		},
 		{
 			name:     "addition and subtraction",
 			expr:     "(a + b) - c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(100), big.NewInt(50), big.NewInt(30)},
-			expected: big.NewInt(120),
+			expected: big.NewInt((100 + 50) - 30),
 		},
 		{
 			name:     "modulo operation",
 			expr:     "a % b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(17), big.NewInt(5)},
-			expected: big.NewInt(2),
+			expected: big.NewInt(17 % 5),
 		},
 		{
 			name:     "complex expression",
 			expr:     "(a + b) * (c - d)",
 			vars:     []string{"a", "b", "c", "d"},
 			values:   []*big.Int{big.NewInt(10), big.NewInt(20), big.NewInt(30), big.NewInt(5)},
-			expected: big.NewInt(750),
+			expected: big.NewInt((10 + 20) * (30 - 5)),
 		},
 		{
 			name:     "with numeric constant",
 			expr:     "(x * 100) / y",
 			vars:     []string{"x", "y"},
 			values:   []*big.Int{big.NewInt(50), big.NewInt(10)},
-			expected: big.NewInt(500),
+			expected: big.NewInt((50 * 100) / 10),
 		},
 		{
 			name:     "sqrt",
 			expr:     "sqrt(a)",
 			vars:     []string{"a"},
 			values:   []*big.Int{big.NewInt(16)},
-			expected: big.NewInt(4),
+			expected: big.NewInt(sqrt(16)),
 		},
 		{
 			name:     "abs",
 			expr:     "abs(a)",
 			vars:     []string{"a"},
 			values:   []*big.Int{big.NewInt(-5)},
-			expected: big.NewInt(5),
+			expected: big.NewInt(abs(-5)),
 		},
 		{
-			name:    "undefined variable",
-			expr:    "a * b",
-			vars:    []string{"a"},
-			values:  []*big.Int{big.NewInt(10)},
-			wantErr: true,
+			name:      "undefined variable",
+			expr:      "a * b",
+			vars:      []string{"a"},
+			values:    []*big.Int{big.NewInt(10)},
+			wantPanic: true,
 		},
 		{
-			name:    "mismatched parentheses",
-			expr:    "(a * b",
-			vars:    []string{"a", "b"},
-			values:  []*big.Int{big.NewInt(10), big.NewInt(20)},
-			wantErr: true,
+			name:      "mismatched parentheses",
+			expr:      "(a * b",
+			vars:      []string{"a", "b"},
+			values:    []*big.Int{big.NewInt(10), big.NewInt(20)},
+			wantPanic: true,
 		},
 	}
 
@@ -92,11 +153,11 @@ func TestCompileAndEval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
 				if r := recover(); r != nil {
-					if !tt.wantErr {
-						t.Errorf("Compile() panicked = %v, wantErr %v", r, tt.wantErr)
+					if !tt.wantPanic {
+						t.Errorf("Compile() panicked = %v, wantPanic %v", r, tt.wantPanic)
 					}
-				} else if tt.wantErr {
-					t.Errorf("Compile() did not panic, wantErr %v", tt.wantErr)
+				} else if tt.wantPanic {
+					t.Errorf("Compile() did not panic, wantPanic %v", tt.wantPanic)
 				}
 			}()
 
@@ -104,17 +165,17 @@ func TestCompileAndEval(t *testing.T) {
 
 			defer func() {
 				if r := recover(); r != nil {
-					if !tt.wantErr {
-						t.Errorf("Exec() panicked = %v, wantErr %v", r, tt.wantErr)
+					if !tt.wantPanic {
+						t.Errorf("Exec() panicked = %v, wantPanic %v", r, tt.wantPanic)
 					}
-				} else if tt.wantErr {
-					t.Errorf("Exec() did not panic, wantErr %v", tt.wantErr)
+				} else if tt.wantPanic {
+					t.Errorf("Exec() did not panic, wantPanic %v", tt.wantPanic)
 				}
 			}()
 
 			result := p.Exec(tt.values...)
 
-			if !tt.wantErr && result.Cmp(tt.expected) != 0 {
+			if !tt.wantPanic && result.Cmp(tt.expected) != 0 {
 				t.Errorf("Exec() = %v, want %v", result, tt.expected)
 			}
 		})
@@ -134,35 +195,35 @@ func TestPrecedence(t *testing.T) {
 			expr:     "a + b * c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(4)},
-			expected: big.NewInt(14), // 2 + (3 * 4) = 14
+			expected: big.NewInt(2 + 3*4), // 2 + 3*4 = 14
 		},
 		{
 			name:     "parentheses override precedence",
 			expr:     "(a + b) * c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(4)},
-			expected: big.NewInt(20), // (2 + 3) * 4 = 20
+			expected: big.NewInt((2 + 3) * 4), // (2 + 3) * 4 = 20
 		},
 		{
 			name:     "and before add",
 			expr:     "a + b & c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(8), big.NewInt(6), big.NewInt(3)},
-			expected: big.NewInt(10), // 8 + (6 & 3) = 10
+			expected: big.NewInt(8 + 6&3), // 8 + 6&3 = 10
 		},
 		{
 			name:     "shift before add",
 			expr:     "a + b << c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(1)},
-			expected: big.NewInt(8), // 2 + (3 << 1) = 8
+			expected: big.NewInt(2 + 3<<1), // 2 + 3<<1 = 8
 		},
 		{
 			name:     "and-not before xor",
 			expr:     "a ^ b &^ c",
 			vars:     []string{"a", "b", "c"},
 			values:   []*big.Int{big.NewInt(12), big.NewInt(14), big.NewInt(5)},
-			expected: big.NewInt(6), // 12 ^ (14 &^ 5) = 6
+			expected: big.NewInt(12 ^ 14&^5), // 12 ^ 14&^5 = 6
 		},
 	}
 
@@ -192,42 +253,42 @@ func TestBitwiseOperators(t *testing.T) {
 			expr:     "a & b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(3)},
-			expected: big.NewInt(2),
+			expected: big.NewInt(6 & 3),
 		},
 		{
 			name:     "left shift",
 			expr:     "a << b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(2)},
-			expected: big.NewInt(24),
+			expected: big.NewInt(6 << 2),
 		},
 		{
 			name:     "right shift",
 			expr:     "a >> b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(24), big.NewInt(2)},
-			expected: big.NewInt(6),
+			expected: big.NewInt(24 >> 2),
 		},
 		{
 			name:     "bitwise or",
 			expr:     "a | b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(3)},
-			expected: big.NewInt(7),
+			expected: big.NewInt(6 | 3),
 		},
 		{
 			name:     "bitwise xor",
 			expr:     "a ^ b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(3)},
-			expected: big.NewInt(5),
+			expected: big.NewInt(6 ^ 3),
 		},
 		{
 			name:     "bitwise and not",
 			expr:     "a &^ b",
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(3)},
-			expected: big.NewInt(4),
+			expected: big.NewInt(6 &^ 3),
 		},
 	}
 
@@ -250,24 +311,139 @@ func TestSupportedOperatorsAndFunctions(t *testing.T) {
 		values   []*big.Int
 		expected *big.Int
 	}{
-		{name: "operator add", expr: "a + b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(7), big.NewInt(5)}, expected: big.NewInt(12)},
-		{name: "operator sub", expr: "a - b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(7), big.NewInt(5)}, expected: big.NewInt(2)},
-		{name: "operator mul", expr: "a * b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(7), big.NewInt(5)}, expected: big.NewInt(35)},
-		{name: "operator div", expr: "a / b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(3)},
-		{name: "operator mod", expr: "a % b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(2)},
-		{name: "operator lsh", expr: "a << b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(3), big.NewInt(3)}, expected: big.NewInt(24)},
-		{name: "operator rsh", expr: "a >> b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(24), big.NewInt(3)}, expected: big.NewInt(3)},
-		{name: "operator and", expr: "a & b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(14), big.NewInt(11)}, expected: big.NewInt(10)},
-		{name: "operator or", expr: "a | b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(10), big.NewInt(5)}, expected: big.NewInt(15)},
-		{name: "operator xor", expr: "a ^ b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(10), big.NewInt(5)}, expected: big.NewInt(15)},
-		{name: "operator and not", expr: "a &^ b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(14), big.NewInt(5)}, expected: big.NewInt(10)},
-		{name: "operator unary neg", expr: "-a", vars: []string{"a"}, values: []*big.Int{big.NewInt(7)}, expected: big.NewInt(-7)},
-		{name: "operator unary not", expr: "~a", vars: []string{"a"}, values: []*big.Int{big.NewInt(7)}, expected: big.NewInt(-8)},
-		{name: "function sqrt", expr: "sqrt(a)", vars: []string{"a"}, values: []*big.Int{big.NewInt(81)}, expected: big.NewInt(9)},
-		{name: "function abs", expr: "abs(a)", vars: []string{"a"}, values: []*big.Int{big.NewInt(-9)}, expected: big.NewInt(9)},
-		{name: "function modInverse", expr: "modInverse(a, m)", vars: []string{"a", "m"}, values: []*big.Int{big.NewInt(3), big.NewInt(11)}, expected: big.NewInt(4)},
-		{name: "function quo", expr: "quo(a, b)", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(3)},
-		{name: "function rem", expr: "rem(a, b)", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(2)},
+		{
+			name:     "operator add",
+			expr:     "a + b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(7), big.NewInt(5)},
+			expected: big.NewInt(7 + 5),
+		},
+		{
+			name:     "operator sub",
+			expr:     "a - b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(7), big.NewInt(5)},
+			expected: big.NewInt(7 - 5),
+		},
+		{
+			name:     "operator mul",
+			expr:     "a * b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(7), big.NewInt(5)},
+			expected: big.NewInt(7 * 5),
+		},
+		{
+			name:     "operator div",
+			expr:     "a / b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(20), big.NewInt(6)},
+			expected: big.NewInt(20 / 6),
+		},
+		{
+			name:     "operator mod",
+			expr:     "a % b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(20), big.NewInt(6)},
+			expected: big.NewInt(20 % 6),
+		},
+		{
+			name:     "operator lsh",
+			expr:     "a << b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(3), big.NewInt(3)},
+			expected: big.NewInt(3 << 3),
+		},
+		{
+			name:     "operator rsh",
+			expr:     "a >> b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(24), big.NewInt(3)},
+			expected: big.NewInt(24 >> 3),
+		},
+		{
+			name:     "operator and",
+			expr:     "a & b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(14), big.NewInt(11)},
+			expected: big.NewInt(14 & 11),
+		},
+		{
+			name:     "operator or",
+			expr:     "a | b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(10), big.NewInt(5)},
+			expected: big.NewInt(10 | 5),
+		},
+		{
+			name:     "operator xor",
+			expr:     "a ^ b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(10), big.NewInt(5)},
+			expected: big.NewInt(10 ^ 5),
+		},
+		{
+			name:     "operator and not",
+			expr:     "a &^ b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(14), big.NewInt(5)},
+			expected: big.NewInt(14 &^ 5),
+		},
+		{
+			name:     "operator unary neg",
+			expr:     "-a",
+			vars:     []string{"a"},
+			values:   []*big.Int{big.NewInt(7)},
+			expected: big.NewInt(-7),
+		},
+		{
+			name:     "operator unary not",
+			expr:     "^a",
+			vars:     []string{"a"},
+			values:   []*big.Int{big.NewInt(7)},
+			expected: big.NewInt(^int64(7)),
+		},
+		{
+			name:     "function sqrt",
+			expr:     "sqrt(a)",
+			vars:     []string{"a"},
+			values:   []*big.Int{big.NewInt(81)},
+			expected: big.NewInt(sqrt(81)),
+		},
+		{
+			name:     "function abs",
+			expr:     "abs(a)",
+			vars:     []string{"a"},
+			values:   []*big.Int{big.NewInt(-9)},
+			expected: big.NewInt(abs(-9)),
+		},
+		{
+			name:     "function modInverse",
+			expr:     "modInverse(a, m)",
+			vars:     []string{"a", "m"},
+			values:   []*big.Int{big.NewInt(3), big.NewInt(11)},
+			expected: big.NewInt(modInverse(3, 11)),
+		},
+		{
+			name:     "function quo",
+			expr:     "quo(a, b)",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(-20), big.NewInt(6)},
+			expected: big.NewInt(quo(-20, 6)),
+		},
+		{
+			name:     "function rem",
+			expr:     "rem(a, b)",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(-20), big.NewInt(6)},
+			expected: big.NewInt(rem(-20, 6)),
+		},
+		{
+			name:     "function modSqrt",
+			expr:     "modSqrt(a, p)",
+			vars:     []string{"a", "p"},
+			values:   []*big.Int{big.NewInt(4), big.NewInt(7)},
+			expected: big.NewInt(modSqrt(4, 7)),
+		},
 	}
 
 	for _, tt := range tests {
@@ -279,21 +455,6 @@ func TestSupportedOperatorsAndFunctions(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("function modSqrt", func(t *testing.T) {
-		a := big.NewInt(4)
-		modulus := big.NewInt(7)
-		p := Compile("modSqrt(a, p)", "a", "p")
-		root := p.Exec(a, modulus)
-
-		// Validate the result by property to avoid depending on a specific root.
-		got := new(big.Int).Mul(root, root)
-		got.Mod(got, modulus)
-		want := new(big.Int).Mod(a, modulus)
-		if got.Cmp(want) != 0 {
-			t.Fatalf("modSqrt property failed: (%v^2) %% %v = %v, want %v", root, modulus, got, want)
-		}
-	})
 }
 
 func TestCompileOpsUnaryOperators(t *testing.T) {
@@ -341,6 +502,52 @@ func TestCompileOpsUnaryOperators(t *testing.T) {
 				t.Fatalf("result = %v, want %v", v, tt.expected)
 			}
 		})
+	}
+}
+
+func TestDivAndQuoDifferOnNegativeValues(t *testing.T) {
+	values := []*big.Int{big.NewInt(-20), big.NewInt(6)}
+
+	divProg := Compile("a / b", "a", "b")
+	quoProg := Compile("quo(a, b)", "a", "b")
+
+	gotDiv := divProg.Exec(values...)
+	gotQuo := quoProg.Exec(values...)
+
+	wantDiv := big.NewInt(-4) // big.Int.Div (Euclidean division)
+	wantQuo := big.NewInt(quo(-20, 6))
+
+	if gotDiv.Cmp(wantDiv) != 0 {
+		t.Fatalf("Div result = %v, want %v", gotDiv, wantDiv)
+	}
+	if gotQuo.Cmp(wantQuo) != 0 {
+		t.Fatalf("Quo result = %v, want %v", gotQuo, wantQuo)
+	}
+	if gotDiv.Cmp(gotQuo) == 0 {
+		t.Fatalf("expected Div and Quo to differ, got both %v", gotDiv)
+	}
+}
+
+func TestModAndRemDifferOnNegativeValues(t *testing.T) {
+	values := []*big.Int{big.NewInt(-20), big.NewInt(6)}
+
+	modProg := Compile("a % b", "a", "b")
+	remProg := Compile("rem(a, b)", "a", "b")
+
+	gotMod := modProg.Exec(values...)
+	gotRem := remProg.Exec(values...)
+
+	wantMod := big.NewInt(4) // big.Int.Mod (Euclidean remainder)
+	wantRem := big.NewInt(rem(-20, 6))
+
+	if gotMod.Cmp(wantMod) != 0 {
+		t.Fatalf("Mod result = %v, want %v", gotMod, wantMod)
+	}
+	if gotRem.Cmp(wantRem) != 0 {
+		t.Fatalf("Rem result = %v, want %v", gotRem, wantRem)
+	}
+	if gotMod.Cmp(gotRem) == 0 {
+		t.Fatalf("expected Mod and Rem to differ, got both %v", gotMod)
 	}
 }
 
@@ -656,11 +863,11 @@ func TestTokenizeShiftOpPanicBranches(t *testing.T) {
 	})
 }
 
-func TestCompilePanicsOnBinaryTilde(t *testing.T) {
+func TestCompilePanicsOnTilde(t *testing.T) {
 	panicVal := mustPanic(t, func() {
 		_ = Compile("a~b", "a", "b")
 	})
-	if !strings.Contains(fmt.Sprint(panicVal), "unknown operator code") {
+	if !strings.Contains(fmt.Sprint(panicVal), "invalid character: ~") {
 		t.Fatalf("unexpected panic: %v", panicVal)
 	}
 }
@@ -703,7 +910,7 @@ func TestTokenizeUnaryPrefixOperators(t *testing.T) {
 		},
 		{
 			name:       "not",
-			expr:       "~a",
+			expr:       "^a",
 			wantOper:   operNot,
 			secondType: tokenTypeParam,
 		},

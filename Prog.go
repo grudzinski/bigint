@@ -290,8 +290,13 @@ func tokenize(expr string, tokens []tToken) []tToken {
 			oper = operOr
 			i += size
 		case '^':
-			tokenType = tokenTypeBinaryOp
-			oper = operXor
+			if isUnaryContext(len(tokens), prevTyp) {
+				tokenType = tokenTypeUnaryOp
+				oper = operNot
+			} else {
+				tokenType = tokenTypeBinaryOp
+				oper = operXor
+			}
 			i += size
 		case '-':
 			if isUnaryContext(len(tokens), prevTyp) {
@@ -300,14 +305,6 @@ func tokenize(expr string, tokens []tToken) []tToken {
 			} else {
 				tokenType = tokenTypeBinaryOp
 				oper = operSub
-			}
-			i += size
-		case '~':
-			if isUnaryContext(len(tokens), prevTyp) {
-				tokenType = tokenTypeUnaryOp
-				oper = operNot
-			} else {
-				tokenType = tokenTypeBinaryOp
 			}
 			i += size
 		case '(':
