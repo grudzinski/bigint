@@ -82,9 +82,9 @@ func compileOps(rpnTokens []tToken, paramNameToIdx map[string]int, ops []tOp) ([
 			case operMod:
 				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: (*big.Int).Mod})
 			case operLsh:
-				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: lshOp})
+				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: func(a, b, c *big.Int) *big.Int { return a.Lsh(b, shiftAmount(c)) }})
 			case operRsh:
-				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: rshOp})
+				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: func(a, b, c *big.Int) *big.Int { return a.Rsh(b, shiftAmount(c)) }})
 			case operAnd:
 				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: (*big.Int).And})
 			case operOr:
@@ -227,14 +227,6 @@ func shiftAmount(v *big.Int) uint {
 		panic("shift count overflows uint")
 	}
 	return uint(v.Uint64())
-}
-
-func lshOp(z, x, y *big.Int) *big.Int {
-	return z.Lsh(x, shiftAmount(y))
-}
-
-func rshOp(z, x, y *big.Int) *big.Int {
-	return z.Rsh(x, shiftAmount(y))
 }
 
 func lookupFn(name string) (tOpFn, tOpCat) {
