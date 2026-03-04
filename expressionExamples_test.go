@@ -28,6 +28,13 @@ func TestExpressionExamples(t *testing.T) {
 			expected: big.NewInt(12),
 		},
 		{
+			name:     "shift",
+			expr:     "(a << n) + (b >> n)",
+			vars:     []string{"a", "b", "n"},
+			values:   []*big.Int{big.NewInt(3), big.NewInt(16), big.NewInt(2)},
+			expected: big.NewInt(16),
+		},
+		{
 			name:     "unary",
 			expr:     "-x + ~y",
 			vars:     []string{"x", "y"},

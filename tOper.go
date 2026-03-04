@@ -9,6 +9,8 @@ const (
 	operMul
 	operDiv
 	operMod
+	operLsh
+	operRsh
 	operAnd
 	operOr
 	operXor
