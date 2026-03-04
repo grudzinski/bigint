@@ -1,4 +1,4 @@
-package big
+package bigint
 
 import (
 	"fmt"

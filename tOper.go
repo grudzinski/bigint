@@ -1,4 +1,4 @@
-package big
+package bigint
 
 type tOper int
 
