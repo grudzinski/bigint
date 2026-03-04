@@ -18,10 +18,10 @@
 //
 // # Syntax
 //
-// The language supports binary operators +, -, *, /, %, &, |, ^, and &^, unary
-// operators - (negation) and ~ (bitwise NOT), and parentheses. Operator
-// precedence follows Go for supported operators: multiplicative (*, /, %, &, &^)
-// binds tighter than additive (+, -, |, ^).
+// The language supports binary operators +, -, *, /, %, <<, >>, &, |, ^, and
+// &^, unary operators - (negation) and ~ (bitwise NOT), and parentheses.
+// Operator precedence follows Go for supported operators: multiplicative
+// (*, /, %, <<, >>, &, &^) binds tighter than additive (+, -, |, ^).
 //
 // # Functions
 //
@@ -32,6 +32,7 @@
 //
 //	(a + b) * (c - d) / 10 % m
 //	(a & b) | (c ^ d) &^ mask
+//	(a << n) + (b >> n)
 //	-x + ~y
 //	abs(a) + sqrt(b)
 //	modInverse(a, m) + rem(x, y) + quo(p, q)

@@ -151,6 +151,13 @@ func TestPrecedence(t *testing.T) {
 			expected: big.NewInt(10), // 8 + (6 & 3) = 10
 		},
 		{
+			name:     "shift before add",
+			expr:     "a + b << c",
+			vars:     []string{"a", "b", "c"},
+			values:   []*big.Int{big.NewInt(2), big.NewInt(3), big.NewInt(1)},
+			expected: big.NewInt(8), // 2 + (3 << 1) = 8
+		},
+		{
 			name:     "and-not before xor",
 			expr:     "a ^ b &^ c",
 			vars:     []string{"a", "b", "c"},
@@ -186,6 +193,20 @@ func TestBitwiseOperators(t *testing.T) {
 			vars:     []string{"a", "b"},
 			values:   []*big.Int{big.NewInt(6), big.NewInt(3)},
 			expected: big.NewInt(2),
+		},
+		{
+			name:     "left shift",
+			expr:     "a << b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(6), big.NewInt(2)},
+			expected: big.NewInt(24),
+		},
+		{
+			name:     "right shift",
+			expr:     "a >> b",
+			vars:     []string{"a", "b"},
+			values:   []*big.Int{big.NewInt(24), big.NewInt(2)},
+			expected: big.NewInt(6),
 		},
 		{
 			name:     "bitwise or",
@@ -234,6 +255,8 @@ func TestSupportedOperatorsAndFunctions(t *testing.T) {
 		{name: "operator mul", expr: "a * b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(7), big.NewInt(5)}, expected: big.NewInt(35)},
 		{name: "operator div", expr: "a / b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(3)},
 		{name: "operator mod", expr: "a % b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(20), big.NewInt(6)}, expected: big.NewInt(2)},
+		{name: "operator lsh", expr: "a << b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(3), big.NewInt(3)}, expected: big.NewInt(24)},
+		{name: "operator rsh", expr: "a >> b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(24), big.NewInt(3)}, expected: big.NewInt(3)},
 		{name: "operator and", expr: "a & b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(14), big.NewInt(11)}, expected: big.NewInt(10)},
 		{name: "operator or", expr: "a | b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(10), big.NewInt(5)}, expected: big.NewInt(15)},
 		{name: "operator xor", expr: "a ^ b", vars: []string{"a", "b"}, values: []*big.Int{big.NewInt(10), big.NewInt(5)}, expected: big.NewInt(15)},
@@ -413,6 +436,8 @@ func TestPrecedenceTable(t *testing.T) {
 		{name: "mul", oper: operMul, expected: 2},
 		{name: "div", oper: operDiv, expected: 2},
 		{name: "mod", oper: operMod, expected: 2},
+		{name: "lsh", oper: operLsh, expected: 2},
+		{name: "rsh", oper: operRsh, expected: 2},
 		{name: "and", oper: operAnd, expected: 2},
 		{name: "and not", oper: operAndNot, expected: 2},
 		{name: "none default", oper: operNone, expected: 0},
@@ -533,6 +558,30 @@ func TestToRPNBranches(t *testing.T) {
 			t.Fatalf("out[4] = %+v, want binary add", out[4])
 		}
 	})
+
+	t.Run("binary branch pops stacked unary operator", func(t *testing.T) {
+		in := []tToken{
+			{tokenType: tokenTypeUnaryOp, oper: operNeg},
+			{tokenType: tokenTypeBinaryOp, oper: operAdd},
+			{tokenType: tokenTypeParam, val: "a"},
+		}
+		out := toRPN(in, make([]tToken, 0, 8))
+		if len(out) != 3 {
+			t.Fatalf("unexpected output len: %d", len(out))
+		}
+		if out[0].tokenType != tokenTypeUnaryOp || out[0].oper != operNeg {
+			t.Fatalf("out[0] = %+v, want unary neg", out[0])
+		}
+	})
+
+	t.Run("panic on unhandled token type", func(t *testing.T) {
+		panicVal := mustPanic(t, func() {
+			_ = toRPN([]tToken{{tokenType: tTokenType(255)}}, make([]tToken, 0, 4))
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "unhandled token") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
 }
 
 func TestTokenizeInvalidUTF8Panics(t *testing.T) {
@@ -559,6 +608,54 @@ func TestTokenizeInvalidUTF8Panics(t *testing.T) {
 	}
 }
 
+func TestTokenizePanicsOnInvalidCharacterInTokenizerDefault(t *testing.T) {
+	panicVal := mustPanic(t, func() {
+		_ = tokenize("a + ! b", make([]tToken, 0, 8))
+	})
+	if !strings.Contains(fmt.Sprint(panicVal), "invalid character: !") {
+		t.Fatalf("unexpected panic: %v", panicVal)
+	}
+}
+
+func TestTokenizeShiftOpPanicBranches(t *testing.T) {
+	t.Run("missing second shift rune", func(t *testing.T) {
+		panicVal := mustPanic(t, func() {
+			_, _ = tokenizeShiftOp("<", 0, 1, '<')
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "invalid character: <") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+
+	t.Run("invalid utf8 after first shift rune", func(t *testing.T) {
+		invalid := string([]byte{0xff})
+		panicVal := mustPanic(t, func() {
+			_, _ = tokenizeShiftOp("<"+invalid, 0, 1, '<')
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "invalid utf-8 encoding") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+
+	t.Run("mismatched second shift rune", func(t *testing.T) {
+		panicVal := mustPanic(t, func() {
+			_, _ = tokenizeShiftOp("<>", 0, 1, '<')
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "invalid character: <") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+
+	t.Run("defensive default branch", func(t *testing.T) {
+		panicVal := mustPanic(t, func() {
+			_, _ = tokenizeShiftOp("xx", 0, 1, 'x')
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "invalid character: x") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+}
+
 func TestCompilePanicsOnBinaryTilde(t *testing.T) {
 	panicVal := mustPanic(t, func() {
 		_ = Compile("a~b", "a", "b")
@@ -566,6 +663,29 @@ func TestCompilePanicsOnBinaryTilde(t *testing.T) {
 	if !strings.Contains(fmt.Sprint(panicVal), "unknown operator code") {
 		t.Fatalf("unexpected panic: %v", panicVal)
 	}
+}
+
+func TestShiftPanicsOnInvalidCount(t *testing.T) {
+	t.Run("negative shift count", func(t *testing.T) {
+		p := Compile("a << b", "a", "b")
+		panicVal := mustPanic(t, func() {
+			_ = p.Exec(big.NewInt(1), big.NewInt(-1))
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "negative shift count") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+
+	t.Run("overflowing shift count", func(t *testing.T) {
+		p := Compile("a >> b", "a", "b")
+		tooBigShift := new(big.Int).Lsh(big.NewInt(1), 200)
+		panicVal := mustPanic(t, func() {
+			_ = p.Exec(big.NewInt(1), tooBigShift)
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "shift count overflows uint") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
 }
 
 func TestTokenizeUnaryPrefixOperators(t *testing.T) {

@@ -3,6 +3,7 @@ package big
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 	"sync"
 	"unicode"
 	"unicode/utf8"
@@ -80,6 +81,10 @@ func compileOps(rpnTokens []tToken, paramNameToIdx map[string]int, ops []tOp) ([
 				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: (*big.Int).Div})
 			case operMod:
 				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: (*big.Int).Mod})
+			case operLsh:
+				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: lshOp})
+			case operRsh:
+				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: rshOp})
 			case operAnd:
 				ops = append(ops, tOp{Cat: opCategoryBinary, Fn: (*big.Int).And})
 			case operOr:
@@ -207,11 +212,29 @@ func precedence(op tOper) int {
 	switch op {
 	case operAdd, operSub, operOr, operXor:
 		return 1
-	case operMul, operDiv, operMod, operAnd, operAndNot:
+	case operMul, operDiv, operMod, operLsh, operRsh, operAnd, operAndNot:
 		return 2
 	default:
 		return 0
 	}
+}
+
+func shiftAmount(v *big.Int) uint {
+	if v.Sign() < 0 {
+		panic("negative shift count")
+	}
+	if v.BitLen() > bits.UintSize {
+		panic("shift count overflows uint")
+	}
+	return uint(v.Uint64())
+}
+
+func lshOp(z, x, y *big.Int) *big.Int {
+	return z.Lsh(x, shiftAmount(y))
+}
+
+func rshOp(z, x, y *big.Int) *big.Int {
+	return z.Rsh(x, shiftAmount(y))
 }
 
 func lookupFn(name string) (tOpFn, tOpCat) {
@@ -256,6 +279,12 @@ func tokenize(expr string, tokens []tToken) []tToken {
 			tokenType = tokenTypeBinaryOp
 			oper = operMul
 			i += size
+		case '<':
+			tokenType = tokenTypeBinaryOp
+			oper, i = tokenizeShiftOp(expr, i, size, r)
+		case '>':
+			tokenType = tokenTypeBinaryOp
+			oper, i = tokenizeShiftOp(expr, i, size, r)
 		case '/':
 			tokenType = tokenTypeBinaryOp
 			oper = operDiv
@@ -356,6 +385,32 @@ func tokenize(expr string, tokens []tToken) []tToken {
 		prevTyp = tokenType
 	}
 	return tokens
+}
+
+func tokenizeShiftOp(expr string, i int, size int, r rune) (tOper, int) {
+	i += size
+	if i >= len(expr) {
+		msg := fmt.Sprintf("invalid character: %c", r)
+		panic(msg)
+	}
+	next, nextSize := utf8.DecodeRuneInString(expr[i:])
+	if next == utf8.RuneError && nextSize == 1 {
+		panic("invalid utf-8 encoding")
+	}
+	if next != r {
+		msg := fmt.Sprintf("invalid character: %c", r)
+		panic(msg)
+	}
+	i += nextSize
+	switch r {
+	case '<':
+		return operLsh, i
+	case '>':
+		return operRsh, i
+	default:
+		msg := fmt.Sprintf("invalid character: %c", r)
+		panic(msg)
+	}
 }
 
 func nextNonSpaceIsLParen(expr string, i int) bool {
