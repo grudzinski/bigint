@@ -1,4 +1,4 @@
-package big
+package bigint
 
 type tToken struct {
 	tokenType tTokenType

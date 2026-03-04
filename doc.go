@@ -1,4 +1,4 @@
-// Package big simplifies working with math/big.Int by evaluating string expressions.
+// Package bigint simplifies working with math/big.Int by evaluating string expressions.
 //
 // It lets you declare expressions once and evaluate them repeatedly with different
 // input values.
@@ -81,4 +81,4 @@
 //	func evalWithBigint(a, b, c, d, e, f, g, h, i, j, k *big.Int) *big.Int {
 //		return p.Exec(a, b, c, d, e, f, g, h, i, j, k)
 //	}
-package big
+package bigint

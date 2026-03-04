@@ -1,4 +1,4 @@
-package big
+package bigint
 
 // Compile creates a new [Prog], calls [Prog.Init] with expr and paramNames, and
 // returns the compiled program. The returned [Prog] can be executed repeatedly
