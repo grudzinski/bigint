@@ -895,6 +895,111 @@ func TestShiftPanicsOnInvalidCount(t *testing.T) {
 	})
 }
 
+func TestConstantFolding(t *testing.T) {
+	type constCheck struct {
+		idx       int
+		wantValue *big.Int
+	}
+
+	tests := []struct {
+		name        string
+		expr        string
+		vars        []string
+		values      []*big.Int
+		wantOpsLen  int
+		constChecks []constCheck
+		wantExec    *big.Int
+	}{
+		{
+			name:       "folds constant subexpression with params",
+			expr:       "(x * x) / (1 << 192)",
+			vars:       []string{"x"},
+			wantOpsLen: 5,
+			constChecks: []constCheck{
+				{idx: 3, wantValue: new(big.Int).Lsh(big.NewInt(1), 192)},
+			},
+		},
+		{
+			name:        "folds fully constant expression",
+			expr:        "(1 << 8) + 2",
+			wantOpsLen:  1,
+			constChecks: []constCheck{{idx: 0}},
+			wantExec:    big.NewInt(258),
+		},
+		{
+			name:        "folds unary constant chain",
+			expr:        "-(^5)",
+			wantOpsLen:  1,
+			constChecks: []constCheck{{idx: 0}},
+			wantExec:    big.NewInt(6), // ^5 == -6, -(-6) == 6
+		},
+		{
+			name:        "folds constant function call",
+			expr:        "sqrt(81) + 1",
+			wantOpsLen:  1,
+			constChecks: []constCheck{{idx: 0}},
+			wantExec:    big.NewInt(10),
+		},
+		{
+			name:       "folds both constant sides around param",
+			expr:       "(2 + 3) * x + (4 << 2)",
+			vars:       []string{"x"},
+			values:     []*big.Int{big.NewInt(7)},
+			wantOpsLen: 5,
+			constChecks: []constCheck{
+				{idx: 0},
+				{idx: 3},
+			},
+			wantExec: big.NewInt(51), // (5*7)+16
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Compile(tt.expr, tt.vars...)
+			if len(p.ops) != tt.wantOpsLen {
+				t.Fatalf("len(ops) = %d, want %d", len(p.ops), tt.wantOpsLen)
+			}
+			for _, check := range tt.constChecks {
+				idx := check.idx
+				if idx >= len(p.ops) {
+					t.Fatalf("const check index %d out of range for len(ops)=%d", idx, len(p.ops))
+				}
+				gotConst := p.ops[idx].Const
+				if gotConst == nil {
+					t.Fatalf("expected constant at ops[%d]", idx)
+				}
+				if check.wantValue != nil && gotConst.Cmp(check.wantValue) != 0 {
+					t.Fatalf("ops[%d].Const = %v, want %v", idx, gotConst, check.wantValue)
+				}
+			}
+			if tt.wantExec != nil {
+				got := p.Exec(tt.values...)
+				if got.Cmp(tt.wantExec) != 0 {
+					t.Fatalf("Exec() = %v, want %v", got, tt.wantExec)
+				}
+			}
+		})
+	}
+}
+
+func TestConstantFoldingPanicsAtCompileTime(t *testing.T) {
+	t.Run("constant division by zero", func(t *testing.T) {
+		_ = mustPanic(t, func() {
+			_ = Compile("1 / 0")
+		})
+	})
+
+	t.Run("constant shift overflow", func(t *testing.T) {
+		panicVal := mustPanic(t, func() {
+			_ = Compile("1 << (1 << 200)")
+		})
+		if !strings.Contains(fmt.Sprint(panicVal), "shift count overflows uint") {
+			t.Fatalf("unexpected panic: %v", panicVal)
+		}
+	})
+}
+
 func TestTokenizeUnaryPrefixOperators(t *testing.T) {
 	tests := []struct {
 		name       string

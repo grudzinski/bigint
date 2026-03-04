@@ -33,6 +33,7 @@ func (p *Prog) Init(exprAsString string, paramNames ...string) {
 		paramNameToIdx[paramName] = i
 	}
 	ops, stackSize := compileOps(rpn, paramNameToIdx, ops)
+	ops, stackSize = foldConstOps(ops, stackSize)
 	p.ops = ops
 	p.paramsCount = len(paramNames)
 	p.stackSize = stackSize
@@ -227,6 +228,88 @@ func shiftAmount(v *big.Int) uint {
 		panic("shift count overflows uint")
 	}
 	return uint(v.Uint64())
+}
+
+func foldConstOps(ops []tOp, stackCap int) ([]tOp, int) {
+	newOps := ops[:0]
+	stack := make([]tFoldedOpNode, 0, stackCap)
+	for _, op := range ops {
+		switch op.Cat {
+		case opCategoryLoad:
+			start := len(newOps)
+			newOps = append(newOps, op)
+			node := tFoldedOpNode{start: start}
+			if op.Const != nil {
+				node.constVal = op.Const
+			}
+			stack = append(stack, node)
+		case opCategoryUnary:
+			var a tFoldedOpNode
+			a, stack = popFoldedOpNode(stack)
+			if a.constVal != nil {
+				op.Fn(a.constVal, nil, nil)
+				newOps = newOps[:a.start]
+				newOps = append(newOps, tOp{Cat: opCategoryLoad, Const: a.constVal})
+				stack = append(stack, tFoldedOpNode{
+					start:    len(newOps) - 1,
+					constVal: a.constVal,
+				})
+				continue
+			}
+			newOps = append(newOps, op)
+			stack = append(stack, tFoldedOpNode{start: a.start})
+		case opCategoryBinary:
+			var b tFoldedOpNode
+			var a tFoldedOpNode
+			b, stack = popFoldedOpNode(stack)
+			a, stack = popFoldedOpNode(stack)
+			if a.constVal != nil && b.constVal != nil {
+				op.Fn(a.constVal, a.constVal, b.constVal)
+				newOps = newOps[:a.start]
+				newOps = append(newOps, tOp{Cat: opCategoryLoad, Const: a.constVal})
+				stack = append(stack, tFoldedOpNode{
+					start:    len(newOps) - 1,
+					constVal: a.constVal,
+				})
+				continue
+			}
+			newOps = append(newOps, op)
+			stack = append(stack, tFoldedOpNode{start: a.start})
+		default:
+			panic("unhandled op category")
+		}
+	}
+	return newOps, calcStackSize(newOps)
+}
+
+func popFoldedOpNode(stack []tFoldedOpNode) (tFoldedOpNode, []tFoldedOpNode) {
+	if len(stack) == 0 {
+		panic("invalid expression")
+	}
+	idx := len(stack) - 1
+	node := stack[idx]
+	return node, stack[:idx]
+}
+
+func calcStackSize(ops []tOp) int {
+	depth := 0
+	maxDepth := 0
+	for _, op := range ops {
+		switch op.Cat {
+		case opCategoryLoad:
+			depth++
+			if depth > maxDepth {
+				maxDepth = depth
+			}
+		case opCategoryUnary:
+			// Unary op keeps stack depth unchanged.
+		case opCategoryBinary:
+			depth--
+		default:
+			panic("undefined category")
+		}
+	}
+	return maxDepth
 }
 
 func lookupFn(name string) (tOpFn, tOpCat) {
