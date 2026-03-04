@@ -21,7 +21,7 @@ func abs(v int64) int64 {
 	return v
 }
 
-func modLikeBig(a, b int64) int64 {
+func mod(a, b int64) int64 {
 	r := a % b
 	if r < 0 {
 		r += b
@@ -30,53 +30,49 @@ func modLikeBig(a, b int64) int64 {
 }
 
 func sqrt(v int64) int64 {
-	if v < 0 {
-		panic("sqrt of negative value")
+	out := new(big.Int).Sqrt(big.NewInt(v))
+	if !out.IsInt64() {
+		panic("sqrt result overflows int64")
 	}
-	var x int64
-	for (x+1)*(x+1) <= v {
-		x++
-	}
-	return x
+	return out.Int64()
 }
 
 func modInverse(a, m int64) int64 {
-	a %= m
-	if a < 0 {
-		a += m
-	}
-	t, newT := int64(0), int64(1)
-	r, newR := m, a
-	for newR != 0 {
-		q := r / newR
-		t, newT = newT, t-q*newT
-		r, newR = newR, r-q*newR
-	}
-	if r != 1 {
+	out := new(big.Int).ModInverse(big.NewInt(a), big.NewInt(m))
+	if out == nil {
 		panic("mod inverse does not exist")
 	}
-	if t < 0 {
-		t += m
+	if !out.IsInt64() {
+		panic("mod inverse result overflows int64")
 	}
-	return t
+	return out.Int64()
 }
 
 func quo(a, b int64) int64 {
-	return a / b
+	out := new(big.Int).Quo(big.NewInt(a), big.NewInt(b))
+	if !out.IsInt64() {
+		panic("quo result overflows int64")
+	}
+	return out.Int64()
 }
 
 func rem(a, b int64) int64 {
-	return a % b
+	out := new(big.Int).Rem(big.NewInt(a), big.NewInt(b))
+	if !out.IsInt64() {
+		panic("rem result overflows int64")
+	}
+	return out.Int64()
 }
 
 func modSqrt(a, p int64) int64 {
-	a = modLikeBig(a, p)
-	for x := int64(0); x < p; x++ {
-		if modLikeBig(x*x, p) == a {
-			return x
-		}
+	out := new(big.Int).ModSqrt(big.NewInt(a), big.NewInt(p))
+	if out == nil {
+		panic("mod sqrt does not exist")
 	}
-	panic("mod sqrt does not exist")
+	if !out.IsInt64() {
+		panic("mod sqrt result overflows int64")
+	}
+	return out.Int64()
 }
 
 func TestCompileAndEval(t *testing.T) {

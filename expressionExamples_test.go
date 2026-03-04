@@ -60,7 +60,7 @@ func TestExpressionExamples(t *testing.T) {
 			expr:     "abs(a-b) + ((c & d) ^ ^e) % m",
 			vars:     []string{"a", "b", "c", "d", "e", "m"},
 			values:   []*big.Int{big.NewInt(5), big.NewInt(12), big.NewInt(14), big.NewInt(11), big.NewInt(0), big.NewInt(7)},
-			expected: big.NewInt(abs(5-12) + modLikeBig((14&11)^(^int64(0)), 7)),
+			expected: big.NewInt(abs(5-12) + mod((14&11)^(^int64(0)), 7)),
 		},
 	}
 
