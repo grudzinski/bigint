@@ -60,8 +60,8 @@ Using `math/big` directly for non-trivial expressions is verbose:
 - readability and maintainability are higher than equivalent manual `math/big` code
 - one compile step, fast repeated `Exec`
 - still uses native `*big.Int` values
-- in typical repeated-use workloads, `Exec` is faster and allocates less memory
-  than equivalent hand-written `math/big` mutation chains
+- in typical repeated-use workloads, `Exec` is usually faster and uses less memory
+  than a typical unoptimized hand-written `math/big` equivalent
 
 ## Install
 
@@ -73,10 +73,11 @@ go get github.com/grudzinski/bigint
 
 Write your expression as a string, for example "(a + b) * c", then call `Compile`
 (or `Prog.Init`) with parameter names in the same order you will pass values.
-Execute the compiled program with `Prog.Exec`, passing `*big.Int` values in that
-exact order.
+Execute the compiled program with `Prog.Exec` or `Prog.ExecInto`, passing
+`*big.Int` values in that exact order. Use `ExecInto` when you want to reuse an
+existing `*big.Int` and avoid an allocation.
 
-Compile once and reuse the same `Prog` for many `Prog.Exec` calls.
+Compile once and reuse the same `Prog` for many `Prog.Exec` or `Prog.ExecInto` calls.
 
 ## Quick Start
 

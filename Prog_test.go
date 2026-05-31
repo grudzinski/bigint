@@ -1121,9 +1121,10 @@ func BenchmarkEvalComplex(b *testing.B) {
 
 	expected := big.NewInt(70)
 
+	result := new(big.Int)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result := p.Exec(values...)
+		p.ExecInto(result, values...)
 		if result.Cmp(expected) != 0 {
 			b.Fatalf("mismatch: got %v, want %v", result, expected)
 		}
@@ -1147,16 +1148,17 @@ func BenchmarkEvalComplexRaw(b *testing.B) {
 
 	expected := big.NewInt(70)
 
+	result := new(big.Int)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		result := evalComplexRaw(values...)
+		evalComplexRawInto(result, values...)
 		if result.Cmp(expected) != 0 {
 			b.Fatalf("mismatch: got %v, want %v", result, expected)
 		}
 	}
 }
 
-func evalComplexRaw(values ...*big.Int) *big.Int {
+func evalComplexRawInto(z *big.Int, values ...*big.Int) {
 	a := values[0]
 	b := values[1]
 	c := values[2]
@@ -1186,5 +1188,5 @@ func evalComplexRaw(values ...*big.Int) *big.Int {
 	tmp3.Div(j, k)
 	tmp1.Sub(tmp1, tmp3)
 
-	return new(big.Int).Set(tmp1)
+	z.Set(tmp1)
 }
