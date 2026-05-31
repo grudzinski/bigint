@@ -73,10 +73,11 @@ go get github.com/grudzinski/bigint
 
 Write your expression as a string, for example "(a + b) * c", then call `Compile`
 (or `Prog.Init`) with parameter names in the same order you will pass values.
-Execute the compiled program with `Prog.Exec`, passing `*big.Int` values in that
-exact order.
+Execute the compiled program with `Prog.Exec` or `Prog.ExecInto`, passing
+`*big.Int` values in that exact order. Use `ExecInto` when you want to reuse an
+existing `*big.Int` and avoid an allocation.
 
-Compile once and reuse the same `Prog` for many `Prog.Exec` calls.
+Compile once and reuse the same `Prog` for many `Prog.Exec` or `Prog.ExecInto` calls.
 
 ## Quick Start
 

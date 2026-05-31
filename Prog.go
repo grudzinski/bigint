@@ -511,11 +511,11 @@ func isUnaryContext(tokensLen int, prevTyp tTokenType) bool {
 	}
 }
 
-// Exec runs the compiled program with paramVals and returns the computed value.
-// The number and order of values must match paramNames passed to [Compile] or
-// [Prog.Init]. Exec is safe for concurrent use by multiple goroutines.
-// Exec panics when the argument count does not match.
-func (p *Prog) Exec(paramVals ...*big.Int) *big.Int {
+// ExecInto fills z with the result of evaluating the compiled expression using
+// paramVals. The number and order of values must match paramNames passed to
+// [Compile] or [Prog.Init]. ExecInto is safe for concurrent use by multiple
+// goroutines. ExecInto panics when the argument count does not match.
+func (p *Prog) ExecInto(z *big.Int, paramVals ...*big.Int) {
 	if len(paramVals) != p.paramsCount {
 		msg := fmt.Sprintf("expected %d param values, got %d", p.paramsCount, len(paramVals))
 		panic(msg)
@@ -551,5 +551,16 @@ func (p *Prog) Exec(paramVals ...*big.Int) *big.Int {
 			op.Fn(a, a, b)
 		}
 	}
-	return new(big.Int).Set(&stack[0])
+	z.Set(&stack[0])
+}
+
+// Exec runs the compiled program with paramVals and returns a new *big.Int
+// containing the result. Exec is equivalent to ExecInto(new(big.Int), paramVals...).
+// The number and order of values must match paramNames passed to [Compile] or
+// [Prog.Init]. Exec is safe for concurrent use by multiple goroutines.
+// Exec panics when the argument count does not match.
+func (p *Prog) Exec(paramVals ...*big.Int) *big.Int {
+	z := new(big.Int)
+	p.ExecInto(z, paramVals...)
+	return z
 }
