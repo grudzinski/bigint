@@ -60,8 +60,8 @@ Using `math/big` directly for non-trivial expressions is verbose:
 - readability and maintainability are higher than equivalent manual `math/big` code
 - one compile step, fast repeated `Exec`
 - still uses native `*big.Int` values
-- in typical repeated-use workloads, `Exec` is faster and allocates less memory
-  than equivalent hand-written `math/big` mutation chains
+- in typical repeated-use workloads, `Exec` is usually faster and uses less memory
+  than a typical unoptimized hand-written `math/big` equivalent
 
 ## Install
 

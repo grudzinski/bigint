@@ -524,10 +524,11 @@ func (p *Prog) ExecInto(z *big.Int, paramVals ...*big.Int) {
 	stackAsAny := p.stackPool.Get()
 	if stackAsAny != nil {
 		stack = stackAsAny.([]big.Int)
+		defer p.stackPool.Put(stackAsAny)
 	} else {
 		stack = make([]big.Int, p.stackSize)
+		defer p.stackPool.Put(stack)
 	}
-	defer p.stackPool.Put(stack)
 	top := 0
 	for _, op := range p.ops {
 		switch op.Cat {
